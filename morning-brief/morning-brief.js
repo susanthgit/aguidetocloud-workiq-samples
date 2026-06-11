@@ -124,49 +124,87 @@ async function askWorkIq(token, question) {
       },
     },
   };
-  const res = await fetch(A2A_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      'A2A-Version': '1.0',
-    },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    throw new Error(`Work IQ A2A returned HTTP ${res.status}: ${(await res.text()).slice(0, 500)}`);
+  // One retry on transient fetch failures (Work IQ A2A occasionally drops on first call).
+  let lastErr = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(A2A_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'A2A-Version': '1.0',
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        throw new Error(`Work IQ A2A returned HTTP ${res.status}: ${(await res.text()).slice(0, 500)}`);
+      }
+      const json = await res.json();
+      if (json.error) throw new Error(`Work IQ error: ${json.error.message || JSON.stringify(json.error)}`);
+      const artifacts = json.result?.task?.artifacts || [];
+      const textParts = artifacts.flatMap((a) => (a.parts || []).filter((p) => p.text)).map((p) => p.text);
+      return textParts.join('\n\n') || '(Work IQ returned no text.)';
+    } catch (err) {
+      lastErr = err;
+      if (attempt === 0 && /fetch failed|ECONNRESET|ETIMEDOUT/i.test(err.message)) {
+        // Transient -- brief pause + retry once
+        await new Promise((r) => setTimeout(r, 1500));
+        continue;
+      }
+      throw err;
+    }
   }
-  const json = await res.json();
-  if (json.error) throw new Error(`Work IQ error: ${json.error.message || JSON.stringify(json.error)}`);
+  throw lastErr;
+}
 
-  // Extract text artifacts (Work IQ returns text in result.task.artifacts[].parts[].text)
-  const artifacts = json.result?.task?.artifacts || [];
-  const textParts = artifacts.flatMap((a) => (a.parts || []).filter((p) => p.text)).map((p) => p.text);
-  return textParts.join('\n\n') || '(Work IQ returned no text.)';
+// === Clean Work IQ markdown for the brief file ===
+// Work IQ inlines:
+//   - long base64 OWA / Teams / SharePoint URLs in [label](url) form
+//   - Unicode citation markers like 【1-aaea3e】
+// Neither helps in a markdown file -- strip both, keep the readable label.
+function cleanForBrief(text) {
+  return text
+    // [label](http...) -> **label** (handles nested-bracket case Work IQ emits)
+    .replace(/\[([^\[\]]*(?:\[[^\]]*\][^\[\]]*)*)\]\(https?:\/\/[^)]+\)/g, '**$1**')
+    // strip citation markers 【...】
+    .replace(/\u3010[^\u3011]+\u3011/g, '')
+    // tidy double-spaces / double-blank-lines left over
+    .replace(/ {2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 // === Main ===
 async function main() {
-  console.log(`Morning brief generator`);
-  console.log(`  tenant: ${TENANT_ID}`);
+  const divider = '━'.repeat(58);
+  console.log('');
+  console.log(divider);
+  console.log('  📋 Morning brief generator -- Microsoft Work IQ');
+  console.log(divider);
+  console.log(`  tenant:  ${TENANT_ID}`);
   console.log(`  project: ${PROJECT}`);
   console.log('');
 
+  const totalStart = Date.now();
   const { token, account } = await getAccessToken();
-  console.log(`[OK] Authenticated as ${account}`);
-  console.log(`     Asking ${PROMPTS.length} questions...`);
+  console.log(`  ✓ Authenticated as ${account}`);
+  console.log(`  ⏳ Asking ${PROMPTS.length} questions via Work IQ A2A...`);
   console.log('');
 
   const sections = [];
+  const timings = [];
   for (const { section, question } of PROMPTS) {
-    process.stdout.write(`  -> ${section}... `);
+    process.stdout.write(`     → ${section.padEnd(34)} `);
     const start = Date.now();
     try {
       const answer = await askWorkIq(token, question);
-      console.log(`done (${((Date.now() - start) / 1000).toFixed(1)}s)`);
+      const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+      console.log(`✓ ${elapsed}s`);
       sections.push({ section, answer });
+      timings.push(Number(elapsed));
     } catch (err) {
-      console.log(`failed: ${err.message}`);
+      console.log(`✗ ${err.message}`);
       sections.push({ section, answer: `_(Work IQ error: ${err.message})_` });
     }
   }
@@ -181,7 +219,7 @@ async function main() {
     ``,
   ];
   for (const { section, answer } of sections) {
-    lines.push(`## ${section}`, ``, answer, ``);
+    lines.push(`## ${section}`, ``, cleanForBrief(answer), ``);
   }
 
   await fs.mkdir(OUT_DIR, { recursive: true });
@@ -189,9 +227,18 @@ async function main() {
   const outPath = path.join(OUT_DIR, `brief-${accountSafe}-${today}.md`);
   await fs.writeFile(outPath, lines.join('\n'), 'utf8');
 
+  const totalSec = ((Date.now() - totalStart) / 1000).toFixed(1);
+  const briefSize = (await fs.stat(outPath)).size;
+
   console.log('');
-  console.log(`[OK] Brief saved to: ${outPath}`);
-  console.log(`     Open in your editor, pipe into email, post to Teams. It is just markdown.`);
+  console.log(divider);
+  console.log(`  ✅ Brief ready in ${totalSec}s  (${(briefSize / 1024).toFixed(1)} KB markdown)`);
+  console.log(divider);
+  console.log(`     ${outPath}`);
+  console.log('');
+  console.log(`     Open it · email it · post to Teams · render as HTML.`);
+  console.log(`     It's just markdown.`);
+  console.log('');
 }
 
 main().catch((err) => {
