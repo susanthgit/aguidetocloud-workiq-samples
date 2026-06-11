@@ -1,0 +1,23 @@
+node_modules/
+*.log
+.env
+.env.local
+
+# Generated brief output
+morning-brief/briefs/
+morning-brief/*.md
+!morning-brief/README.md
+
+# Token caches (NEVER commit — contains refresh tokens)
+.cache/
+*token-cache*.json
+.probe-token-cache.json
+
+# OS noise
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/

@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Work IQ — ask</title>
+  <style>
+    :root {
+      --paper: #FAF5E8;
+      --paper-deep: #ECE4D2;
+      --ink: #1B2A4A;
+      --ink-soft: #3A4762;
+      --ink-faint: #6E7892;
+      --pen: #B83230;
+      --ink-green: #2D7A4F;
+      --border: rgba(27, 42, 74, 0.15);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+      line-height: 1.55;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 1.5rem 2rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--ink);
+    }
+    header .meta {
+      margin-top: 0.25rem;
+      font-size: 0.85rem;
+      color: var(--ink-faint);
+    }
+    main {
+      flex: 1;
+      max-width: 760px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 1.5rem 2rem 4rem;
+    }
+    form {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+    input[type=text] {
+      flex: 1;
+      padding: 0.7rem 0.9rem;
+      font-size: 1rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: white;
+      color: var(--ink);
+      font-family: inherit;
+    }
+    input[type=text]:focus {
+      outline: 2px solid var(--ink-green);
+      outline-offset: 0;
+      border-color: var(--ink-green);
+    }
+    button {
+      padding: 0.7rem 1.2rem;
+      font-size: 1rem;
+      font-weight: 600;
+      background: var(--ink-green);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:disabled {
+      background: var(--ink-faint);
+      cursor: not-allowed;
+    }
+    .examples {
+      margin-bottom: 1.5rem;
+      font-size: 0.85rem;
+      color: var(--ink-soft);
+    }
+    .examples a {
+      color: var(--pen);
+      text-decoration: none;
+      border-bottom: 1px dashed var(--pen);
+      margin-right: 0.5rem;
+      cursor: pointer;
+    }
+    .answer {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1rem;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .answer.pending {
+      color: var(--ink-faint);
+      font-style: italic;
+    }
+    .answer.error {
+      background: #fdf2f2;
+      border-color: var(--pen);
+      color: var(--pen);
+    }
+    .citations {
+      margin-top: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--ink-faint);
+    }
+    .citations .chip {
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      background: var(--paper-deep);
+      border-radius: 999px;
+      margin-right: 0.3rem;
+      margin-top: 0.3rem;
+    }
+    .question-label {
+      font-size: 0.8rem;
+      color: var(--ink-faint);
+      margin-bottom: 0.25rem;
+    }
+    .question-text {
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      color: var(--ink);
+    }
+    footer {
+      text-align: center;
+      padding: 1rem;
+      font-size: 0.8rem;
+      color: var(--ink-faint);
+      border-top: 1px solid var(--border);
+    }
+    footer a { color: var(--pen); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Work IQ — ask</h1>
+    <div class="meta">Microsoft Work IQ via MCP · <span id="account">…</span></div>
+  </header>
+
+  <main>
+    <form id="ask-form" autocomplete="off">
+      <input type="text" id="question" placeholder="Ask anything across your mail, calendar, files, Teams…" required autofocus />
+      <button type="submit" id="ask-btn">Ask</button>
+    </form>
+
+    <div class="examples">
+      Try:
+      <a data-q="What's on my calendar today?">today's calendar</a>
+      <a data-q="Summarise everything about Project Adventure in the last 7 days.">project status</a>
+      <a data-q="What commitments have I made that I haven't followed up on?">open commitments</a>
+      <a data-q="Find emails from Mario about the auth spike.">find specific emails</a>
+    </div>
+
+    <div id="answers"></div>
+  </main>
+
+  <footer>
+    Sample code — <a href="https://github.com/susanthgit/aguidetocloud-workiq-samples" target="_blank" rel="noopener">aguidetocloud-workiq-samples</a> · MIT licence
+  </footer>
+
+  <script>
+    const form = document.getElementById('ask-form');
+    const input = document.getElementById('question');
+    const btn = document.getElementById('ask-btn');
+    const answers = document.getElementById('answers');
+    const accountSpan = document.getElementById('account');
+
+    // Show account in header
+    fetch('/api/health').then(r => r.json()).then(d => {
+      accountSpan.textContent = d.account || '(unknown)';
+    });
+
+    // Example chips
+    document.querySelectorAll('.examples a').forEach(a => {
+      a.addEventListener('click', () => {
+        input.value = a.dataset.q;
+        input.focus();
+      });
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const question = input.value.trim();
+      if (!question) return;
+      input.value = '';
+      btn.disabled = true;
+
+      // Insert pending answer card at the top
+      const card = document.createElement('div');
+      card.className = 'answer pending';
+      card.innerHTML = `
+        <div class="question-label">You asked</div>
+        <div class="question-text"></div>
+        <div class="body">Asking Work IQ…</div>
+      `;
+      card.querySelector('.question-text').textContent = question;
+      answers.prepend(card);
+
+      try {
+        const start = Date.now();
+        const res = await fetch('/api/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question })
+        });
+        const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+        card.classList.remove('pending');
+        const body = card.querySelector('.body');
+        body.textContent = data.answer;
+
+        // Citations
+        if (data.citations && data.citations.length) {
+          const cite = document.createElement('div');
+          cite.className = 'citations';
+          cite.innerHTML = '<strong>Sources:</strong> ';
+          for (const c of data.citations) {
+            const chip = document.createElement('span');
+            chip.className = 'chip';
+            chip.textContent = c.name || c.uri || 'source';
+            cite.appendChild(chip);
+          }
+          card.appendChild(cite);
+        }
+
+        // Timing footnote
+        const time = document.createElement('div');
+        time.className = 'citations';
+        time.textContent = `Answered in ${elapsed}s`;
+        card.appendChild(time);
+      } catch (err) {
+        card.classList.remove('pending');
+        card.classList.add('error');
+        card.querySelector('.body').textContent = 'Work IQ error: ' + err.message;
+      } finally {
+        btn.disabled = false;
+        input.focus();
+      }
+    });
+  </script>
+</body>
+</html>
