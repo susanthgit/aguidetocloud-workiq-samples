@@ -4,6 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Work IQ — ask</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked@13.0.3/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
   <style>
     :root {
       --paper: #FAF5E8;
@@ -43,7 +45,7 @@
     }
     main {
       flex: 1;
-      max-width: 760px;
+      max-width: 820px;
       width: 100%;
       margin: 0 auto;
       padding: 1.5rem 2rem 4rem;
@@ -51,7 +53,7 @@
     form {
       display: flex;
       gap: 0.5rem;
-      margin-bottom: 1.5rem;
+      margin-bottom: 1rem;
     }
     input[type=text] {
       flex: 1;
@@ -91,49 +93,121 @@
       color: var(--pen);
       text-decoration: none;
       border-bottom: 1px dashed var(--pen);
-      margin-right: 0.5rem;
+      margin-right: 0.6rem;
       cursor: pointer;
     }
-    .answer {
+    .card {
       background: white;
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 1.25rem 1.5rem;
-      margin-bottom: 1rem;
-      white-space: pre-wrap;
+      margin-bottom: 1.25rem;
+      overflow-wrap: break-word;
       word-wrap: break-word;
     }
-    .answer.pending {
+    .card.pending .body {
       color: var(--ink-faint);
       font-style: italic;
     }
-    .answer.error {
+    .card.error {
       background: #fdf2f2;
       border-color: var(--pen);
       color: var(--pen);
     }
-    .citations {
-      margin-top: 0.5rem;
-      font-size: 0.8rem;
-      color: var(--ink-faint);
-    }
-    .citations .chip {
-      display: inline-block;
-      padding: 0.2rem 0.6rem;
-      background: var(--paper-deep);
-      border-radius: 999px;
-      margin-right: 0.3rem;
-      margin-top: 0.3rem;
-    }
     .question-label {
       font-size: 0.8rem;
       color: var(--ink-faint);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
       margin-bottom: 0.25rem;
     }
     .question-text {
       font-weight: 600;
-      margin-bottom: 0.75rem;
+      margin-bottom: 1rem;
       color: var(--ink);
+      font-size: 1.05rem;
+    }
+    /* Rendered markdown body */
+    .body h1, .body h2, .body h3 {
+      margin: 1.2em 0 0.5em;
+      color: var(--ink);
+      line-height: 1.3;
+    }
+    .body h1 { font-size: 1.25rem; }
+    .body h2 { font-size: 1.1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; }
+    .body h3 { font-size: 1rem; }
+    .body p { margin: 0.75em 0; }
+    .body ul, .body ol { margin: 0.5em 0; padding-left: 1.4rem; }
+    .body li { margin: 0.3em 0; }
+    .body strong { color: var(--ink); font-weight: 600; }
+    .body em { color: var(--ink-soft); }
+    .body code {
+      background: var(--paper-deep);
+      padding: 0.1em 0.35em;
+      border-radius: 3px;
+      font-size: 0.9em;
+      font-family: ui-monospace, 'SF Mono', Consolas, Menlo, monospace;
+    }
+    .body pre {
+      background: var(--paper-deep);
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.85rem;
+    }
+    .body pre code { background: none; padding: 0; }
+    .body blockquote {
+      margin: 0.75em 0;
+      padding-left: 1rem;
+      border-left: 3px solid var(--paper-deep);
+      color: var(--ink-soft);
+    }
+    .body hr {
+      border: 0;
+      border-top: 1px solid var(--border);
+      margin: 1.5em 0;
+    }
+    .body table {
+      border-collapse: collapse;
+      margin: 0.75em 0;
+      font-size: 0.9rem;
+    }
+    .body th, .body td {
+      border: 1px solid var(--border);
+      padding: 0.4rem 0.65rem;
+      text-align: left;
+    }
+    .body th { background: var(--paper-deep); font-weight: 600; }
+    /* Links: keep clickable, don't let URLs blow the layout */
+    .body a {
+      color: var(--pen);
+      text-decoration: underline;
+      text-decoration-color: rgba(184, 50, 48, 0.4);
+      text-underline-offset: 2px;
+      overflow-wrap: anywhere;
+    }
+    .body a:hover { text-decoration-color: var(--pen); }
+    /* The N-xxxxx citation markers Work IQ inlines -- styled as muted chips */
+    .citation-marker {
+      display: inline-block;
+      background: var(--paper-deep);
+      color: var(--ink-faint);
+      font-size: 0.7em;
+      padding: 0.05em 0.4em;
+      border-radius: 999px;
+      margin: 0 0.15em;
+      vertical-align: super;
+      cursor: help;
+    }
+    .footer-meta {
+      margin-top: 0.75rem;
+      padding-top: 0.5rem;
+      border-top: 1px dashed var(--border);
+      font-size: 0.75rem;
+      color: var(--ink-faint);
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
     }
     footer {
       text-align: center;
@@ -148,7 +222,7 @@
 <body>
   <header>
     <h1>Work IQ — ask</h1>
-    <div class="meta">Microsoft Work IQ via MCP · <span id="account">…</span></div>
+    <div class="meta">Microsoft Work IQ via A2A REST · <span id="account">…</span></div>
   </header>
 
   <main>
@@ -173,24 +247,31 @@
   </footer>
 
   <script>
+    marked.use({ gfm: true, breaks: false });
+
     const form = document.getElementById('ask-form');
     const input = document.getElementById('question');
     const btn = document.getElementById('ask-btn');
     const answers = document.getElementById('answers');
     const accountSpan = document.getElementById('account');
 
-    // Show account in header
     fetch('/api/health').then(r => r.json()).then(d => {
       accountSpan.textContent = d.account || '(unknown)';
     });
 
-    // Example chips
     document.querySelectorAll('.examples a').forEach(a => {
       a.addEventListener('click', () => {
         input.value = a.dataset.q;
         input.focus();
       });
     });
+
+    // Work IQ inlines citation markers as Unicode square brackets
+    function styleCitationMarkers(html) {
+      return html.replace(/\u3010([^\u3011]+)\u3011/g, '<span class="citation-marker" title="source $1">$1</span>');
+    }
+
+    let conversationId = null;
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -199,9 +280,8 @@
       input.value = '';
       btn.disabled = true;
 
-      // Insert pending answer card at the top
       const card = document.createElement('div');
-      card.className = 'answer pending';
+      card.className = 'card pending';
       card.innerHTML = `
         <div class="question-label">You asked</div>
         <div class="question-text"></div>
@@ -215,39 +295,38 @@
         const res = await fetch('/api/ask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question })
+          body: JSON.stringify({ question, conversationId })
         });
         const elapsed = ((Date.now() - start) / 1000).toFixed(1);
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        if (data.conversationId) conversationId = data.conversationId;
 
         card.classList.remove('pending');
         const body = card.querySelector('.body');
-        body.textContent = data.answer;
 
-        // Citations
-        if (data.citations && data.citations.length) {
-          const cite = document.createElement('div');
-          cite.className = 'citations';
-          cite.innerHTML = '<strong>Sources:</strong> ';
-          for (const c of data.citations) {
-            const chip = document.createElement('span');
-            chip.className = 'chip';
-            chip.textContent = c.name || c.uri || 'source';
-            cite.appendChild(chip);
-          }
-          card.appendChild(cite);
-        }
+        const rawHtml = marked.parse(data.answer || '');
+        const cleanHtml = DOMPurify.sanitize(rawHtml, { ADD_ATTR: ['target', 'rel'] });
+        body.innerHTML = styleCitationMarkers(cleanHtml);
 
-        // Timing footnote
-        const time = document.createElement('div');
-        time.className = 'citations';
-        time.textContent = `Answered in ${elapsed}s`;
-        card.appendChild(time);
+        body.querySelectorAll('a').forEach(a => {
+          a.setAttribute('target', '_blank');
+          a.setAttribute('rel', 'noopener noreferrer');
+        });
+
+        const meta = document.createElement('div');
+        meta.className = 'footer-meta';
+        meta.innerHTML = `
+          <span>Answered in ${elapsed}s</span>
+          <span>Account: ${data.account || '(unknown)'}</span>
+          <span>Latency: ${data.latency_ms}ms</span>
+        `;
+        card.appendChild(meta);
+
       } catch (err) {
         card.classList.remove('pending');
         card.classList.add('error');
-        card.querySelector('.body').textContent = 'Work IQ error: ' + err.message;
+        card.querySelector('.body').textContent = 'Work IQ error: ' + err.message + ' (try again — transient failures happen)';
       } finally {
         btn.disabled = false;
         input.focus();
